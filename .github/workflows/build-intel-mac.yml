@@ -8,7 +8,15 @@ permissions:
 
 jobs:
   build-intel:
-    runs-on: macos-latest
+    # macos-13 is the last GitHub-hosted runner with a NATIVE Intel
+    # (x86_64) CPU. macos-latest is now Apple Silicon (ARM), which
+    # forces a cross-compile; lance-linalg's build.rs compiles its
+    # AVX-512 dist_table kernel with march=native, and on an ARM
+    # host targeting x86_64 that flag is incoherent, so clang fails
+    # silently and the AVX-512 symbol is never emitted -> linker
+    # error. Building natively on Intel makes march=native resolve
+    # to a real x86_64 CPU and fixes it.
+    runs-on: macos-13
     steps:
       - name: Checkout
         uses: actions/checkout@v4
