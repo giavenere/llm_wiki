@@ -1,0 +1,54 @@
+name: Build macOS Intel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-intel:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Install protoc
+        run: brew install protobuf
+
+      # The committed libpdfium.dylib is arm64-only; swap in the
+      # official x86_64 build so PDF extraction works on Intel.
+      - name: Use x86_64 pdfium binary
+        run: |
+          curl -L -o pdfium-mac-x64.tgz https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-mac-x64.tgz
+          tar xzf pdfium-mac-x64.tgz lib/libpdfium.dylib
+          cp lib/libpdfium.dylib src-tauri/pdfium/libpdfium.dylib
+          file src-tauri/pdfium/libpdfium.dylib
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build Tauri app (x86_64)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: '--target x86_64-apple-darwin'
+
+      - name: Upload dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LLM-Wiki-macOS-Intel-dmg
+          path: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14
